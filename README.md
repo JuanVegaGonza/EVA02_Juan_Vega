@@ -22,6 +22,15 @@ INSTRUCCIONES DETALLADAS:
 Paso 1: Continúa por Plaza de Armas
 Paso 2: Gira a la derecha por Calle Estado
 
+
+
+Ejemplo del programa ejecutandose
+
+
+
+
+
+
 <img width="864" height="403" alt="image" src="https://github.com/user-attachments/assets/839e8ab5-be46-42e1-a953-651a745c74bf" />
 
 
