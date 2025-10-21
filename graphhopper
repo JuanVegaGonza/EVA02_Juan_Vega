@@ -1,0 +1,270 @@
+import requests
+import urllib.parse
+
+# URL base de la API de rutas
+route_url = "https://graphhopper.com/api/1/route?"
+# Tu clave de API de Graphhopper
+key = "78f3be7b-5881-47bf-869f-5849bd882ebd"
+
+# ----------------------------------------------------------
+# FUNCIÓN PARA TRADUCIR TEXTO DE LA API AL ESPAÑOL
+# ----------------------------------------------------------
+def traducir_instruccion(texto):
+    # Diccionario de traducciones para términos comunes en inglés
+    traducciones = {
+        "and drive toward": "y conduce hacia",
+        "and take": "y toma",
+        "toward": "hacia",
+        "Take": "Toma",
+        "Drive": "Conduce",
+        "Continue": "Continúa",
+        "Turn": "Gira",
+        "left": "izquierda",
+        "right": "derecha",
+        "slight left": "leve a la izquierda",
+        "slight right": "leve a la derecha",
+        "sharp left": "fuerte a la izquierda", 
+        "sharp right": "fuerte a la derecha",
+        "straight": "derecho",
+        "roundabout": "rotonda",
+        "exit": "salida",
+        "Keep": "Mantente",
+        "on": "en",
+        "the": "la",
+        "at": "en",
+        "Arrive at": "Llegarás a",
+        "You have reached": "Has llegado a"
+    }
+    
+    # Aplicar traducciones
+    texto_traducido = texto
+    for ingles, espanol in traducciones.items():
+        texto_traducido = texto_traducido.replace(ingles, espanol)
+    
+    return texto_traducido
+
+# ----------------------------------------------------------
+# FUNCIÓN PARA OBTENER COORDENADAS A PARTIR DE UN LUGAR
+# ----------------------------------------------------------
+def geocodificar(lugar, key):
+    while lugar == "":
+        lugar = input("Por favor ingrese la ubicación nuevamente: ")
+
+    geocode_url = "https://graphhopper.com/api/1/geocode?"
+    url = geocode_url + urllib.parse.urlencode({
+        "q": lugar,
+        "limit": "1",
+        "key": key
+    })
+
+    respuesta = requests.get(url)
+    estado_json = respuesta.status_code
+    datos_json = respuesta.json()
+
+    if estado_json == 200 and len(datos_json.get("hits", [])) != 0:
+        lat = datos_json["hits"][0]["point"]["lat"]
+        lng = datos_json["hits"][0]["point"]["lng"]
+        nombre = datos_json["hits"][0].get("name", "")
+        estado = datos_json["hits"][0].get("state", "")
+        pais = datos_json["hits"][0].get("country", "")
+        ubicacion_completa = f"{nombre}, {estado}, {pais}"
+
+        print(f"\nURL de la API de geocodificación: {url}")
+        print(f"Ubicación encontrada: {ubicacion_completa}")
+    else:
+        lat = "null"
+        lng = "null"
+        ubicacion_completa = lugar
+        print("Error: No se pudo encontrar la ubicación o la solicitud fue incorrecta.")
+
+    return estado_json, lat, lng, ubicacion_completa
+
+# ----------------------------------------------------------
+# FUNCIÓN PARA CONVERTIR TIEMPO A FORMATO LEGIBLE
+# ----------------------------------------------------------
+def formatear_tiempo(tiempo_ms):
+    segundos_totales = int(tiempo_ms / 1000)
+    horas = segundos_totales // 3600
+    minutos = (segundos_totales % 3600) // 60
+    segundos = segundos_totales % 60
+    
+    if horas > 0:
+        return f"{horas} horas, {minutos} minutos y {segundos} segundos"
+    elif minutos > 0:
+        return f"{minutos} minutos y {segundos} segundos"
+    else:
+        return f"{segundos} segundos"
+
+# ----------------------------------------------------------
+# FUNCIÓN PARA MOSTRAR RUTA PREDETERMINADA (CASA A SEDE)
+# ----------------------------------------------------------
+def mostrar_ruta_casa_sede():
+    print("\n" + "="*50)
+    print("        RUTA PREDETERMINADA: CASA → SEDE")
+    print("="*50)
+    
+    # Coordenadas de ejemplo para Los Apóstoles 211, Placilla a Duoc UC Viña del Mar
+    casa_lat = "-33.12487448246913"
+    casa_lng = "-71.58092361513971"
+    sede_lat = "-33.0346988" 
+    sede_lng = "-71.53370798422111"
+    
+    vehiculo = "car"  # Usar auto por defecto
+    
+    op = "&point=" + casa_lat + "%2C" + casa_lng
+    dp = "&point=" + sede_lat + "%2C" + sede_lng
+    
+    url_completa = route_url + urllib.parse.urlencode({
+        "key": key,
+        "vehicle": vehiculo,
+        "locale": "es"
+    }) + op + dp
+
+    print(f"URL de la API de rutas:\n{url_completa}")
+    
+    respuesta = requests.get(url_completa)
+    datos = respuesta.json()
+
+    if respuesta.status_code == 200:
+        distancia = datos["paths"][0]["distance"] / 1000  # en km
+        tiempo_ms = datos["paths"][0]["time"]
+        
+        print(f"\nRESUMEN DEL VIAJE:")
+        print(f"• Desde: Tu casa (Los Apóstoles 211, Placilla)")
+        print(f"• Hasta: Sede Duoc UC (Chorrillos, Viña del Mar)")
+        print(f"• Distancia total: {distancia:.2f} km")
+        print(f"• Duración estimada: {formatear_tiempo(tiempo_ms)}")
+        
+        print("\n" + "="*50)
+        print("          INSTRUCCIONES DETALLADAS DEL VIAJE")
+        print("="*50)
+        
+        for i, paso in enumerate(datos["paths"][0]["instructions"], 1):
+            texto_instruccion = traducir_instruccion(paso['text'])
+            distancia_paso = paso.get("distance", 0) / 1000  # Convertir a km
+            
+            print(f"\nPaso {i}: {texto_instruccion}")
+            if distancia_paso > 0:
+                print(f"   (Distancia en este paso: {distancia_paso:.2f} km)")
+                
+    else:
+        print("Error al calcular la ruta:", datos.get("message", "Error desconocido"))
+
+# ----------------------------------------------------------
+# PROGRAMA PRINCIPAL
+# ----------------------------------------------------------
+def main():
+    while True:
+        print("\n" + "="*50)
+        print("          PLANIFICADOR DE RUTAS - GRAPHHOPPER")
+        print("="*50)
+        print("Opciones disponibles:")
+        print("1. Calcular ruta personalizada")
+        print("2. Ver ruta predeterminada (Casa → Sede)")
+        print("3. Salir del programa")
+        print("="*50)
+        
+        opcion = input("\nSeleccione una opción (1-3) o escriba 's'/'salir': ").strip().lower()
+        
+        if opcion in ["3", "s", "salir"]:
+            print("¡Gracias por usar el planificador de rutas! Hasta pronto.")
+            break
+        
+        elif opcion == "2":
+            mostrar_ruta_casa_sede()
+            input("\nPresione Enter para continuar...")
+            continue
+        
+        elif opcion == "1":
+            print("\n" + "="*50)
+            print("Perfiles de vehículo disponibles:")
+            print("="*50)
+            print("• auto")
+            print("• bicicleta") 
+            print("• pie")
+            print("="*50)
+
+            vehiculo_input = input("Ingrese un perfil de vehículo: ").strip().lower()
+
+            # Verificar si el usuario quiere salir
+            if vehiculo_input in ["s", "salir"]:
+                print("Saliendo del programa...")
+                break
+
+            # Traducción de los nombres al formato que Graphhopper entiende
+            if vehiculo_input == "auto":
+                vehiculo = "car"
+            elif vehiculo_input == "bicicleta":
+                vehiculo = "bike"
+            elif vehiculo_input == "pie":
+                vehiculo = "foot"
+            else:
+                vehiculo = "car"
+                print("Perfil no válido. Se utilizará 'auto' por defecto.")
+
+            origen = input("Lugar de inicio: ").strip()
+            if origen.lower() in ["s", "salir"]:
+                print("Saliendo del programa...")
+                break
+                
+            origen_datos = geocodificar(origen, key)
+
+            destino = input("Destino: ").strip()
+            if destino.lower() in ["s", "salir"]:
+                print("Saliendo del programa...")
+                break
+                
+            destino_datos = geocodificar(destino, key)
+
+            # Verificar que ambas ubicaciones sean válidas
+            if origen_datos[0] == 200 and destino_datos[0] == 200:
+                op = "&point=" + str(origen_datos[1]) + "%2C" + str(origen_datos[2])
+                dp = "&point=" + str(destino_datos[1]) + "%2C" + str(destino_datos[2])
+                url_completa = route_url + urllib.parse.urlencode({
+                    "key": key,
+                    "vehicle": vehiculo,
+                    "locale": "es"
+                }) + op + dp
+
+                print(f"\nURL de la API de rutas:\n{url_completa}")
+                respuesta = requests.get(url_completa)
+                datos = respuesta.json()
+
+                if respuesta.status_code == 200:
+                    distancia = datos["paths"][0]["distance"] / 1000  # en km
+                    tiempo_ms = datos["paths"][0]["time"]
+                    
+                    print(f"\nRESUMEN DEL VIAJE:")
+                    print(f"• Desde: {origen_datos[3]}")
+                    print(f"• Hasta: {destino_datos[3]}")
+                    print(f"• Vehículo: {vehiculo}")
+                    print(f"• Distancia total: {distancia:.2f} km")
+                    print(f"• Duración estimada: {formatear_tiempo(tiempo_ms)}")
+                    
+                    print("\n" + "="*50)
+                    print("          INSTRUCCIONES DETALLADAS DEL VIAJE")
+                    print("="*50)
+                    
+                    for i, paso in enumerate(datos["paths"][0]["instructions"], 1):
+                        texto_instruccion = traducir_instruccion(paso['text'])
+                        distancia_paso = paso.get("distance", 0) / 1000  # Convertir a km
+                        
+                        print(f"\nPaso {i}: {texto_instruccion}")
+                        if distancia_paso > 0:
+                            print(f"   (Distancia en este paso: {distancia_paso:.2f} km)")
+                    
+                    input("\nPresione Enter para continuar...")
+                            
+                else:
+                    print("Error al calcular la ruta:", datos.get("message", "Error desconocido"))
+                    input("\nPresione Enter para continuar...")
+            else:
+                print("Una o ambas ubicaciones no son válidas. Por favor intente nuevamente.")
+                input("\nPresione Enter para continuar...")
+        
+        else:
+            print("Opción no válida. Por favor seleccione 1, 2, 3 o escriba 's'/'salir'.")
+            input("\nPresione Enter para continuar...")
+
+if __name__ == "__main__":
+    main()
