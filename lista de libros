@@ -1,0 +1,66 @@
+import requests
+import time
+
+API_BASE = "http://library.demo.local/api/v1/books"
+REQUEST_HEADERS = {"accept": "application/json"}
+
+MAX_PAGE_COUNT = 100
+RETRY_ATTEMPTS = 5
+DELAY_BETWEEN_REQUESTS = 0.5
+
+def main():
+    book_count = 0
+    current_page = 0
+    
+    print("================================================================================")
+    print("                        CATALOGO COMPLETO DE LIBROS")
+    print("                          (Ordenado por Autor)")
+    print("================================================================================")
+    print()
+
+    while current_page < MAX_PAGE_COUNT:
+        request_url = f"{API_BASE}?includeISBN=true&sortBy=author&page={current_page}"
+
+        for retry_count in range(RETRY_ATTEMPTS):
+            response = requests.get(request_url, headers=REQUEST_HEADERS)
+
+            if response.status_code == 200:
+                page_books = response.json()
+                
+                if not page_books:
+                    print("------------------------------------------------------------------------")
+                    print(f"OPERACION COMPLETADA: Se encontraron {book_count} libros en total")
+                    print("------------------------------------------------------------------------")
+                    return
+
+                for book in page_books:
+                    book_count += 1
+                    book_id = book['id']
+                    book_title = book['title']
+                    book_author = book['author']
+                    book_isbn = book.get('isbn', 'NO DISPONIBLE')
+                    
+                    print(f"{book_count:03d} | ID: {book_id:<6} | {book_title:<40} | {book_author:<25} | {book_isbn}")
+                
+                time.sleep(DELAY_BETWEEN_REQUESTS)
+                break
+
+            elif response.status_code == 429:
+                wait_time = response.headers.get("Retry-After")
+                delay = float(wait_time) if wait_time else DELAY_BETWEEN_REQUESTS * (2 ** retry_count)
+                print(f"[PAGINA {current_page}] Limite de solicitudes - Reintento en {delay:.1f} segundos...")
+                time.sleep(delay)
+                continue
+
+            else:
+                print(f"[PAGINA {current_page}] Error en la solicitud: Codigo {response.status_code}")
+                return
+
+        else:
+            print(f"[PAGINA {current_page}] No se pudo recuperar despues de {RETRY_ATTEMPTS} intentos")
+            return
+
+        current_page += 1
+
+if __name__ == "__main__":
+    main()
